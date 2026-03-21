@@ -29,7 +29,7 @@ jobs:
         with:
           tag_name: ${{ github.run_number }}
           release_name: Release ${{ github.run_number }}
-          draft: false
+          draft: true
           prerelease: false
       - name: Upload Release Asset
         id: upload-release-asset
@@ -41,3 +41,13 @@ jobs:
           asset_path: Matrix-0.1.0-Linux.deb
           asset_name: Matrix-0.1.0-Linux.deb
           asset_content_type: application/vnd.debian.binary-package
+      - name: Publish Release
+        id: publish-release
+        uses: actions/create-release@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_id: ${{ steps.create_release.outputs.id }} # Указываем ID созданного черновика
+          draft: false  # <-- Публикуем релиз
+          prerelease: false
