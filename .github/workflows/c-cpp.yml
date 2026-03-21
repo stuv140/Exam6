@@ -40,10 +40,10 @@ jobs:
       - name: Create package
         run: |
           cmake --build . --target package
-          mv Editor-0.1.0-Linux.deb Editor-${{ github.run_number }}-Linux.deb
+          mv matrix-0.1.0-Linux.deb matrix-${{ github.run_number }}-Linux.deb
 
       - name: Verify package creation
-        run: ls -l Editor-*
+        run: ls -l matrix-*
 
       - name: Create Release
         id: create_release
