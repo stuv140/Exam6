@@ -45,7 +45,7 @@ jobs:
           cmake --build . --target package
           # Переименовываем файл, используя версию из CMake.
           # Если версия 0.1.0, файл станет matrix-0.1.0-Linux.deb
-          mv Matrix-0.1.0-Linux.deb matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
+          mv matrix-0.1.0-Linux.deb matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
 
       - name: Verify package creation
         run: ls -l matrix-*
