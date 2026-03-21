@@ -3,7 +3,7 @@
 #include <cassert>
 #include <tuple>
 #include<memory>
-#include"matrix.h"
+#include"Matrix.h"
 
 int main()
 {
