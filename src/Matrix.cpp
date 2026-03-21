@@ -6,7 +6,7 @@
 #include"Matrix.h"
 
 int main()
-{
+{ 
     Matrix<int, -1> matrix;
     assert(matrix.Size() == 0);
     auto a = matrix[0][0];
