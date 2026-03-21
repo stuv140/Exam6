@@ -1,19 +1,21 @@
 name: 'C++ CI'
 
+# --- ИЗМЕНЕНИЕ 1: Запуск только по тегам ---
+# Теперь процесс не будет мешать разработке в ветках.
+# Он сработает только когда вы создадите тег, например: git tag v1.0.0 && git push origin v1.0.0
 on:
   push:
-    branches:
-      - main
-      - feature/github_actions 
+    tags:
+      - 'v*' 
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # для работы с релизами и контентом
-      packages: write  # для выгрузки пакетов
-      pull-requests: write  # для работы с пулл реквестами
-      issues: write    # для комментирования задач
+      contents: write
+      packages: write
+      pull-requests: write
+      issues: write
 
     steps:
       - uses: actions/checkout@v4 # Используйте актуальную версию
