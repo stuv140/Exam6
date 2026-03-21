@@ -1,20 +1,24 @@
 name: 'C++ CI'
 
-
 on:
   push:
-    tags:
-      - 'v*' # Например, при создании тега v1.0.0
-
-permissions:
-  contents: write
-  packages: write
+    branches:
+      - main
+      - feature/github_actions 
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # для работы с релизами и контентом
+      packages: write  # для выгрузки пакетов
+      pull-requests: write  # для работы с пулл реквестами
+      issues: write    # для комментирования задач
+
     steps:
-      - uses: actions/checkout@v4 # Используйте актуальную версию checkout
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
 
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
@@ -28,31 +32,42 @@ jobs:
       - name: Run tests
         run: cmake --build . --target test
 
-      - name: Create package (Debian)
-        run: cmake --build . --target package
+      - name: Display test results
+        run: |
+          ctest --output-on-failure
+          cat Tests/Temporary/LastTest.log || true
 
-    
-      - name: Create and Publish Release
+      - name: Create package
+        run: |
+          cmake --build . --target package
+          mv Editor-0.1.0-Linux.deb Editor-${{ github.run_number }}-Linux.deb
+
+      - name: Verify package creation
+        run: ls -l Editor-*
+
+      - name: Create Release
         id: create_release
-        uses: actions/create-release@v4
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # github.ref_name содержит только имя тега (например, v1.0.0)
-          tag_name: ${{ github.ref_name }} 
-          release_name: Release ${{ github.ref_name }}
-          draft: false # Создаем и сразу публикуем
+          tag_name: v${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          draft: false
           prerelease: false
 
-      # 3. ЗАГРУЗКА АКТИВА (ФАЙЛА)
-      - name: Upload Release Asset (.deb)
-        id: upload-release-asset
+      - name: Upload test logs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: Tests/Temporary/LastTest.log
+
+      - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Используем upload_url из шага создания релиза
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: Matrix-0.1.0-Linux.deb # Убедитесь, что CMake создает файл с этим именем!
-          asset_name: Matrix-0.1.0-Linux.deb
+          asset_path: Editor-${{ github.run_number }}-Linux.deb
+          asset_name: Editor-${{ github.run_number }}-Linux.deb
           asset_content_type: application/vnd.debian.binary-package
