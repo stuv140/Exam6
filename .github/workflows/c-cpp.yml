@@ -1,6 +1,5 @@
 name: 'C++ CI'
 
-
 on:
   push:
     branches:
@@ -23,7 +22,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
 
       - name: Configure CMake
-        run: cmake . -DPATCH_VERSION=${{ github.run_number }} -DWITH_BOOST_TEST=ON
+        run: |
+          # Устанавливаем версию на основе номера запуска
+          cmake . -DPATCH_VERSION=${{ github.run_number }} -DWITH_BOOST_TEST=ON
 
       - name: Build project
         run: cmake --build .
@@ -36,27 +37,41 @@ jobs:
           ctest --output-on-failure || true
           cat Tests/Temporary/LastTest.log || true
 
-   
-      - name: Create package with versioned name
+      - name: Create package
         run: |
           cmake --build . --target package
+          # Получаем версию из CMakeLists.txt
+          echo "CPACK_PACKAGE_VERSION=$(cmake -P version.cmake 2>/dev/null || echo '0.1.0')" >> $GITHUB_ENV
           
-          # Если версия 0.1.0, файл станет matrix-0.1.0-Linux.deb
-          mv matrix-0.1.0-Linux.deb matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
+          # Показываем созданные файлы для отладки
+          ls -la *.deb || echo "No .deb files found"
+
+      - name: Get package version from CPack
+        run: |
+          # Альтернативный способ: извлечь версию из файла пакета
+          PACKAGE_FILE=$(ls matrix-*.deb 2>/dev/null | head -n 1)
+          if [ -n "$PACKAGE_FILE" ]; then
+            VERSION=$(echo $PACKAGE_FILE | sed 's/matrix-//' | sed 's/-Linux.deb//')
+            echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+            echo "Found package version: $VERSION"
+          else
+            echo "PACKAGE_VERSION=0.1.0" >> $GITHUB_ENV
+            echo "No package found, using default version"
+          fi
 
       - name: Verify package creation
         run: ls -l matrix-*
 
-    
       - name: Create Release
+        id: create_release  # ВАЖНО: добавляем ID для ссылки
         uses: actions/create-release@v1
         env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-         tag_name: v0.1.0     
-         release_name: Release v0.1.0
-         draft: false
-         prerelease: false
+          tag_name: v${{ env.PACKAGE_VERSION }}
+          release_name: Release v${{ env.PACKAGE_VERSION }}
+          draft: false
+          prerelease: false
 
       - name: Upload test logs as artifact
         uses: actions/upload-artifact@v4
@@ -64,27 +79,13 @@ jobs:
           name: test-logs-${{ github.ref_name }}
           path: Tests/Temporary/LastTest.log
 
-    
       - name: Upload Release Asset
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-           upload_url: ${{ steps.create_release.outputs.upload_url }}
-           asset_path: matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
-           asset_name: matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
-           asset_content_type: application/vnd.debian.binary-package
-
-     
-    
-      - name: Publish Release
-        id: publish-release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_id: ${{ steps.create_release.outputs.id }} # Указываем ID черновика
-          draft: false  # Публикуем!
-          prerelease: false
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
+          asset_name: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
+          asset_content_type: application/vnd.debian.binary-package
