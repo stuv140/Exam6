@@ -7,10 +7,10 @@
 
 int main()
 { 
-    Matrix<int, -1> matrix;
+    Matrix<int, 0> matrix;
     assert(matrix.Size() == 0);
     auto a = matrix[0][0];
-    assert(a == -1);
+    assert(a == 0);
     assert(matrix.Size() == 0);
     matrix[100][100] = 314; //Опционально реализовать каноническую форму оператора =
     assert(matrix.Size() == 1);
@@ -22,7 +22,7 @@ int main()
         std::tie(x, y, v) = c;
         std::cout << x << y << v << std::endl;
     }
-    matrix[100][100] = -1;
+    matrix[100][100] = 0;
     assert(matrix.Size() == 0);
     // 1. заполнить главную диагональ матрицы (от \[0,0\] до \[9,9\]) значениями от 0 до 9.
     for (auto i = 0; i < 10; i++)
