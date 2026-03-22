@@ -21,14 +21,6 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
 
-      - name: Set version
-        run: |
-          # Создаем уникальную версию с временной меткой
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          VERSION="0.1.${{ github.run_number }}-${TIMESTAMP}"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Using version: $VERSION"
-
       - name: Configure CMake
         run: cmake . -DWITH_BOOST_TEST=ON
 
@@ -42,30 +34,20 @@ jobs:
         run: |
           cmake --build . --target package
           
-          # Переименовываем пакет с уникальной версией
+          # Создаем уникальную версию
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          VERSION="0.1.${{ github.run_number }}-${TIMESTAMP}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Using version: $VERSION"
+          
+          # Переименовываем пакет
           if [ -f "matrix-0.1.0-Linux.deb" ]; then
-            mv matrix-0.1.0-Linux.deb matrix-${{ env.VERSION }}-Linux.deb
+            mv matrix-0.1.0-Linux.deb matrix-${VERSION}-Linux.deb
           elif [ -f "build/matrix-0.1.0-Linux.deb" ]; then
-            cp build/matrix-0.1.0-Linux.deb matrix-${{ env.VERSION }}-Linux.deb
+            cp build/matrix-0.1.0-Linux.deb matrix-${VERSION}-Linux.deb
           fi
           
-          echo "PACKAGE_FILE=matrix-${{ env.VERSION }}-Linux.deb" >> $GITHUB_ENV
-
-      - name: Verify package
-        run: |
-          echo "=== Package file ==="
-          ls -l ${{ env.PACKAGE_FILE }}
-
-      - name: Create Release with unique tag
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: release-${{ env.VERSION }}
-          release_name: "Release ${{ env.VERSION }} - Build #${{ github.run_number }}"
-          draft: false
-          prerelease: true
+          echo "PACKAGE_FILE=matrix-${VERSION}-Linux.deb" >> $GITHUB_ENV
 
       - name: Upload test logs
         uses: actions/upload-artifact@v4
@@ -73,12 +55,19 @@ jobs:
           name: test-logs-${{ github.run_number }}
           path: Testing/Temporary/LastTest.log
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Create Release and Upload Asset using GitHub CLI
+        run: |
+          TAG_NAME="release-${{ env.VERSION }}"
+          RELEASE_NAME="Release ${{ env.VERSION }} - Build #${{ github.run_number }}"
+          
+          # Удаляем старый релиз если существует
+          gh release delete "$TAG_NAME" --yes || true
+          
+          # Создаем новый релиз и загружаем asset
+          gh release create "$TAG_NAME" \
+            --title "$RELEASE_NAME" \
+            --notes "Automated release from workflow run #${{ github.run_number }}" \
+            --prerelease \
+            ${{ env.PACKAGE_FILE }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.PACKAGE_FILE }}
-          asset_name: ${{ env.PACKAGE_FILE }}
-          asset_content_type: application/vnd.debian.binary-package
