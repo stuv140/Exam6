@@ -1,86 +1,32 @@
-name: 'C++ CI'
+cmake
+cmake_minimum_required(VERSION 3.10)
 
-on:
-  push:
-    branches:
-      - main
-      - feature/github_actions
+project(matrix VERSION 0.1.0 LANGUAGES CXX)
 
-jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-      pull-requests: write
-      issues: write
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    steps:
-      - uses: actions/checkout@v4 
+# Опция для включения Boost.Test
+option(WITH_BOOST_TEST "Build with Boost.Test" ON)
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
+# Добавляем поддиректории
+add_subdirectory(src)
 
-      - name: Configure CMake
-        run: cmake . -DPATCH_VERSION=${{ github.run_number }} -DWITH_BOOST_TEST=ON
+# Включаем тестирование
+enable_testing()
+add_subdirectory(tests)
 
-      - name: Build project
-        run: cmake --build .
+# Настройка CPack
+include(InstallRequiredSystemLibraries)
 
-      - name: Run tests
-        run: cmake --build . --target test
+set(CPACK_PACKAGE_NAME "matrix")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_GENERATOR "DEB")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "otus")
 
-      - name: Display test results
-        run: |
-          ctest --output-on-failure || true
-          cat Tests/Temporary/LastTest.log || true
+# Указываем, что устанавливать
+install(TARGETS Matrix 
+    RUNTIME DESTINATION bin
+)
 
-      - name: Create package
-        run: cmake --build . --target package
-
-      - name: Get package version
-        run: |
-          # Извлекаем версию из CMakeLists.txt
-          VERSION=$(grep -oP 'VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
-          echo "Package version: $VERSION"
-          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-          
-          # Проверяем существование пакета
-          if [ -f "matrix-${VERSION}-Linux.deb" ]; then
-            echo "Package matrix-${VERSION}-Linux.deb found"
-          else
-            echo "Warning: Expected package matrix-${VERSION}-Linux.deb not found"
-            echo "Available packages:"
-            ls -la *.deb || echo "No .deb files found"
-          fi
-
-      - name: Verify package creation
-        run: ls -l matrix-*
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ env.PACKAGE_VERSION }}
-          release_name: Release v${{ env.PACKAGE_VERSION }}
-          draft: false
-          prerelease: false
-
-      - name: Upload test logs as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-${{ github.ref_name }}
-          path: Tests/Temporary/LastTest.log
-
-      - name: Upload Release Asset
-        id: upload-release-asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
-          asset_name: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
-          asset_content_type: application/vnd.debian.binary-package
+include(CPack)
