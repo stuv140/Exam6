@@ -23,9 +23,10 @@ jobs:
 
       - name: Configure CMake with dynamic version
         run: |
-          # Используем номер запуска и SHA коммита для уникальной версии
-          VERSION="0.1.${{ github.run_number }}+${{ github.sha }}"
+          # Используем номер запуска для уникальной версии
+          VERSION="0.1.${{ github.run_number }}"
           echo "Building version: $VERSION"
+          echo "PROJECT_VERSION=$VERSION" >> $GITHUB_ENV
           cmake . -DWITH_BOOST_TEST=ON -DPROJECT_VERSION="$VERSION"
 
       - name: Build project
@@ -37,13 +38,52 @@ jobs:
       - name: Create package
         run: |
           cmake --build . --target package
-          # Получаем версию из CMakeCache
-          VERSION=$(grep "CPACK_PACKAGE_VERSION:STATIC=" CMakeCache.txt | cut -d '=' -f2)
+          
+          # Находим созданный пакет
+          echo "=== Looking for package files ==="
+          ls -la *.deb || echo "No .deb files found in current directory"
+          ls -la build/*.deb 2>/dev/null || echo "No .deb files in build directory"
+          
+          # Получаем версию из CMakeLists.txt или из переменной
+          if [ -f "CMakeLists.txt" ]; then
+            VERSION=$(grep -oP 'VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt || echo "0.1.0")
+            echo "Version from CMakeLists.txt: $VERSION"
+          else
+            VERSION="0.1.0"
+          fi
+          
+          # Используем PROJECT_VERSION если она установлена
+          if [ -n "$PROJECT_VERSION" ]; then
+            VERSION="$PROJECT_VERSION"
+            echo "Using PROJECT_VERSION: $VERSION"
+          fi
+          
           echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Created package with version: $VERSION"
+          
+          # Проверяем существование файла
+          if [ -f "matrix-${VERSION}-Linux.deb" ]; then
+            echo "Package found: matrix-${VERSION}-Linux.deb"
+          elif [ -f "build/matrix-${VERSION}-Linux.deb" ]; then
+            echo "Package found in build directory"
+            cp build/matrix-${VERSION}-Linux.deb .
+          else
+            echo "Warning: Expected package not found, looking for any .deb file"
+            DEB_FILE=$(find . -name "*.deb" -type f | head -n 1)
+            if [ -n "$DEB_FILE" ]; then
+              echo "Found: $DEB_FILE"
+              cp "$DEB_FILE" ./matrix-${VERSION}-Linux.deb
+            else
+              echo "ERROR: No .deb package found!"
+              exit 1
+            fi
+          fi
 
       - name: Verify package creation
-        run: ls -l matrix-*.deb
+        run: |
+          echo "=== Package files ==="
+          ls -l matrix-*.deb || echo "No package files"
+          echo "=== PACKAGE_VERSION ==="
+          echo "Version: ${{ env.PACKAGE_VERSION }}"
 
       - name: Create Release
         id: create_release
