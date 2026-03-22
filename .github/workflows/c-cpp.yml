@@ -21,8 +21,12 @@ jobs:
       - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
 
-      - name: Configure CMake
-        run: cmake . -DPATCH_VERSION=${{ github.run_number }} -DWITH_BOOST_TEST=ON
+      - name: Configure CMake with dynamic version
+        run: |
+          # Используем номер запуска и SHA коммита для уникальной версии
+          VERSION="0.1.${{ github.run_number }}+${{ github.sha }}"
+          echo "Building version: $VERSION"
+          cmake . -DWITH_BOOST_TEST=ON -DPROJECT_VERSION="$VERSION"
 
       - name: Build project
         run: cmake --build .
@@ -30,43 +34,16 @@ jobs:
       - name: Run tests
         run: ctest --output-on-failure
 
-      - name: Display test results (if failed)
-        if: failure()
-        run: |
-          echo "=== Test log ==="
-          find . -name "LastTest.log" -exec cat {} \; || true
-
       - name: Create package
-        run: cmake --build . --target package
-
-      - name: Get package version
         run: |
-          # Извлекаем версию из CMakeLists.txt
-          VERSION=$(grep -oP 'VERSION \K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
-          echo "Package version: $VERSION"
+          cmake --build . --target package
+          # Получаем версию из CMakeCache
+          VERSION=$(grep "CPACK_PACKAGE_VERSION:STATIC=" CMakeCache.txt | cut -d '=' -f2)
           echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-          
-          # Проверяем существование пакета
-          if [ -f "matrix-${VERSION}-Linux.deb" ]; then
-            echo "Package matrix-${VERSION}-Linux.deb found"
-          else
-            echo "Warning: Expected package matrix-${VERSION}-Linux.deb not found"
-            echo "Available packages:"
-            ls -la *.deb || echo "No .deb files found"
-            # Пробуем найти любой .deb файл
-            DEB_FILE=$(ls *.deb 2>/dev/null | head -n 1)
-            if [ -n "$DEB_FILE" ]; then
-              echo "Found alternative package: $DEB_FILE"
-              echo "DEB_FILENAME=$DEB_FILE" >> $GITHUB_ENV
-            fi
-          fi
+          echo "Created package with version: $VERSION"
 
       - name: Verify package creation
-        run: |
-          echo "=== Created packages ==="
-          ls -l *.deb || echo "No .deb files found"
-          echo "=== Build directory contents ==="
-          ls -la
+        run: ls -l matrix-*.deb
 
       - name: Create Release
         id: create_release
@@ -74,18 +51,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ env.PACKAGE_VERSION }}
-          release_name: Release v${{ env.PACKAGE_VERSION }}
+          tag_name: build-${{ github.run_number }}
+          release_name: "Build #${{ github.run_number }} - ${{ github.sha }}"
           draft: false
-          prerelease: false
+          prerelease: true
 
       - name: Upload test logs as artifact
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-${{ github.run_number }}
-          path: |
-            Testing/Temporary/LastTest.log
-            **/LastTest.log
+          path: Testing/Temporary/LastTest.log
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -95,16 +70,4 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
           asset_name: matrix-${{ env.PACKAGE_VERSION }}-Linux.deb
-          asset_content_type: application/vnd.debian.binary-package
-        continue-on-error: true  # Продолжаем даже если не удалось загрузить
-
-      - name: Upload alternative package if exists
-        if: env.DEB_FILENAME != ''
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ env.DEB_FILENAME }}
-          asset_name: ${{ env.DEB_FILENAME }}
           asset_content_type: application/vnd.debian.binary-package
