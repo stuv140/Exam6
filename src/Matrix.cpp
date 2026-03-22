@@ -5,7 +5,7 @@
 #include<memory> 
 #include"Matrix.h"
 
-int main()
+int main() 
 { 
     Matrix<int, 0> matrix;
     assert(matrix.Size() == 0);
