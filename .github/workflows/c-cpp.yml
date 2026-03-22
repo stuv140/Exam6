@@ -23,15 +23,14 @@ jobs:
 
       - name: Set version
         run: |
-          # Устанавливаем уникальную версию
-          VERSION="0.1.${{ github.run_number }}"
+          # Создаем уникальную версию с временной меткой
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          VERSION="0.1.${{ github.run_number }}-${TIMESTAMP}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Using version: $VERSION"
 
       - name: Configure CMake
-        run: |
-          # Передаем версию через аргумент CMake
-          cmake . -DWITH_BOOST_TEST=ON -DVERSION_SUFFIX="${{ env.VERSION }}"
+        run: cmake . -DWITH_BOOST_TEST=ON
 
       - name: Build project
         run: cmake --build .
@@ -43,9 +42,9 @@ jobs:
         run: |
           cmake --build . --target package
           
-          # Копируем пакет в корень с правильным именем
+          # Переименовываем пакет с уникальной версией
           if [ -f "matrix-0.1.0-Linux.deb" ]; then
-            cp matrix-0.1.0-Linux.deb matrix-${{ env.VERSION }}-Linux.deb
+            mv matrix-0.1.0-Linux.deb matrix-${{ env.VERSION }}-Linux.deb
           elif [ -f "build/matrix-0.1.0-Linux.deb" ]; then
             cp build/matrix-0.1.0-Linux.deb matrix-${{ env.VERSION }}-Linux.deb
           fi
@@ -54,17 +53,17 @@ jobs:
 
       - name: Verify package
         run: |
+          echo "=== Package file ==="
           ls -l ${{ env.PACKAGE_FILE }}
-          file ${{ env.PACKAGE_FILE }}
 
-      - name: Create Release
+      - name: Create Release with unique tag
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: build-${{ github.run_number }}
-          release_name: "Build #${{ github.run_number }} - ${{ github.sha }}"
+          tag_name: release-${{ env.VERSION }}
+          release_name: "Release ${{ env.VERSION }} - Build #${{ github.run_number }}"
           draft: false
           prerelease: true
 
