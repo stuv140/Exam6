@@ -40,7 +40,7 @@ jobs:
       - name: Create package with versioned name
         run: |
           cmake --build . --target package
-          # Переименовываем файл, используя версию из CMake.
+          
           # Если версия 0.1.0, файл станет matrix-0.1.0-Linux.deb
           mv matrix-0.1.0-Linux.deb matrix-${{ env.CPACK_PACKAGE_VERSION }}-Linux.deb
 
@@ -53,7 +53,7 @@ jobs:
         env:
          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-         tag_name: v0.1.0      # Используйте семантическую версию
+         tag_name: v0.1.0     
          release_name: Release v0.1.0
          draft: false
          prerelease: false
